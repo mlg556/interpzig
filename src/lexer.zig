@@ -71,11 +71,33 @@ const Lexer = struct {
             '{' => .LBRACE,
             '}' => .RBRACE,
             0 => .EOF,
-            else => .ILLEGAL,
+            else => {
+                if (isLetter(lex.ch)) {
+                    .{ .IDENT = lex.readIdentifier() };
+                } else {
+                    .ILLEGAL;
+                }
+            },
         };
 
         lex.readChar();
         return tok;
+    }
+
+    /// checks if given char is a letter, ignores "_" so we can use it in identifiers
+    pub fn isLetter(ch: u8) bool {
+        return std.ascii.isAlphabetic(ch) or ch == '_';
+    }
+
+    /// reads in an identifier and advances the lexer’s positions until it encounters a non-letter-character
+    pub fn readIdentifier(lex: *Lexer) string {
+        const pos = lex.position;
+
+        while (isLetter(lex.ch)) {
+            lex.readChar();
+        }
+
+        return lex.input[pos..lex.position];
     }
 };
 
