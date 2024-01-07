@@ -19,15 +19,38 @@ pub const Token = union(enum) {
     EOF,
     ASSIGN,
     PLUS,
+    MINUS,
+    BANG,
+    ASTERISK,
+    SLASH,
+    LT,
+    GT,
     COMMA,
     SEMICOLON,
     LPAREN,
     RPAREN,
     LBRACE,
     RBRACE,
+
+    // keywords
     FUNCTION,
     LET,
+    TRUE,
+    FALSE,
+    IF,
+    ELSE,
+    RETURN,
 };
+
+const keyword_map = std.ComptimeStringMap(Token, .{
+    .{ "fn", .FUNCTION },
+    .{ "let", .LET },
+    .{ "true", .TRUE },
+    .{ "false", .FALSE },
+    .{ "if", .IF },
+    .{ "else", .ELSE },
+    .{ "return", .RETURN },
+});
 
 /// Main Lexer struct.
 const Lexer = struct {
@@ -48,7 +71,7 @@ const Lexer = struct {
     }
 
     ///  gives us the next character and advance our position in the input string.
-    pub fn readChar(lex: *Lexer) void {
+    fn readChar(lex: *Lexer) void {
         if (lex.readPosition >= lex.input.len) {
             lex.ch = 0;
         } else {
@@ -59,8 +82,21 @@ const Lexer = struct {
         lex.readPosition += 1;
     }
 
+    fn readNumber(lex: *Lexer) string {
+
+        // TODO: integrate std.fmt.ParseInt
+        var pos = lex.position;
+
+        while (isDigit(lex.ch)) {
+            lex.readChar();
+        }
+
+        return lex.input[pos..lex.position];
+    }
+
     /// looks at the current character under examination and returns a token depending on which character it is.
     pub fn nextToken(lex: *Lexer) Token {
+        lex.skipWhitespace();
         const tok: Token = switch (lex.ch) {
             '=' => .ASSIGN,
             ';' => .SEMICOLON,
@@ -70,27 +106,59 @@ const Lexer = struct {
             '+' => .PLUS,
             '{' => .LBRACE,
             '}' => .RBRACE,
+            '-' => .MINUS,
+            '!' => .BANG,
+            '*' => .ASTERISK,
+            '/' => .SLASH,
+            '<' => .LT,
+            '>' => .GT,
+
             0 => .EOF,
-            else => {
-                if (isLetter(lex.ch)) {
-                    .{ .IDENT = lex.readIdentifier() };
-                } else {
-                    .ILLEGAL;
+
+            // isLetter
+            'a'...'z', 'A'...'Z', '_' => {
+                // read identifier, could be keyword or not
+                const ident = lex.readIdentifier();
+
+                // if keyword, return its token
+                if (lookupIdent(ident)) |token| {
+                    return token;
                 }
+
+                // if not, return an identifier token with payload
+                return .{ .IDENT = ident };
             },
+
+            // is digit
+            '0'...'9' => {
+                const num = lex.readNumber();
+                return .{ .INT = num };
+            },
+
+            else => .ILLEGAL,
         };
 
         lex.readChar();
         return tok;
     }
 
+    fn skipWhitespace(lex: *Lexer) void {
+        while (std.ascii.isWhitespace(lex.ch)) {
+            lex.readChar();
+        }
+    }
+
     /// checks if given char is a letter, ignores "_" so we can use it in identifiers
-    pub fn isLetter(ch: u8) bool {
+    fn isLetter(ch: u8) bool {
         return std.ascii.isAlphabetic(ch) or ch == '_';
     }
 
+    fn isDigit(ch: u8) bool {
+        return std.ascii.isDigit(ch);
+    }
+
     /// reads in an identifier and advances the lexer’s positions until it encounters a non-letter-character
-    pub fn readIdentifier(lex: *Lexer) string {
+    fn readIdentifier(lex: *Lexer) string {
         const pos = lex.position;
 
         while (isLetter(lex.ch)) {
@@ -98,6 +166,11 @@ const Lexer = struct {
         }
 
         return lex.input[pos..lex.position];
+    }
+
+    /// checks the keywords table to see whether the given identifier is in fact a keyword. returns is as a token if so. else returns null.
+    fn lookupIdent(ident: string) ?Token {
+        return keyword_map.get(ident);
     }
 };
 
@@ -155,6 +228,103 @@ test "Lexer - More" {
 
     for (exp_tokens) |exp_token| {
         const token = lex.nextToken();
+        try std.testing.expectEqualDeep(exp_token, token);
+    }
+}
+
+test "Lexer - Full" {
+    const input =
+        \\let five = 5;
+        \\let ten = 10;
+        \\let add = fn(x, y) {
+        \\ x + y;
+        \\ };
+        \\let result = add(five, ten);
+        \\!-/*5;
+        \\5 < 10 > 5;
+        \\if (5 < 10) {
+        \\return true;
+        \\} else {
+        \\return false;
+        \\}
+    ;
+
+    var lex = Lexer.init(input);
+
+    var exp_tokens = [_]Token{
+        .LET,
+        .{ .IDENT = "five" },
+        .ASSIGN,
+        .{ .INT = "5" },
+        .SEMICOLON,
+        .LET,
+        .{ .IDENT = "ten" },
+        .ASSIGN,
+        .{ .INT = "10" },
+        .SEMICOLON,
+        .LET,
+        .{ .IDENT = "add" },
+        .ASSIGN,
+        .FUNCTION,
+        .LPAREN,
+        .{ .IDENT = "x" },
+        .COMMA,
+        .{ .IDENT = "y" },
+        .RPAREN,
+        .LBRACE,
+        .{ .IDENT = "x" },
+        .PLUS,
+        .{ .IDENT = "y" },
+        .SEMICOLON,
+        .RBRACE,
+        .SEMICOLON,
+        .LET,
+        .{ .IDENT = "result" },
+        .ASSIGN,
+        .{ .IDENT = "add" },
+        .LPAREN,
+        .{ .IDENT = "five" },
+        .COMMA,
+        .{ .IDENT = "ten" },
+        .RPAREN,
+        .SEMICOLON,
+
+        .BANG,
+        .MINUS,
+        .SLASH,
+        .ASTERISK,
+        .{ .INT = "5" },
+        .SEMICOLON,
+        .{ .INT = "5" },
+        .LT,
+        .{ .INT = "10" },
+        .GT,
+        .{ .INT = "5" },
+        .SEMICOLON,
+        .IF,
+        .LPAREN,
+        .{ .INT = "5" },
+        .LT,
+        .{ .INT = "10" },
+        .RPAREN,
+        .LBRACE,
+        .RETURN,
+        .TRUE,
+        .SEMICOLON,
+        .RBRACE,
+        .ELSE,
+        .LBRACE,
+        .RETURN,
+        .FALSE,
+        .SEMICOLON,
+        .RBRACE,
+
+        .EOF,
+    };
+
+    for (exp_tokens) |exp_token| {
+        const token = lex.nextToken();
+        std.debug.print("{:}\n", .{token});
         try std.testing.expectEqualDeep(exp_token, token);
     }
 }
