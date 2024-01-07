@@ -6,7 +6,7 @@ const prompt = ">> ";
 pub fn main() !void {
     var reader = std.io.getStdIn().reader();
     var buffer: [1024]u8 = undefined;
-
+    std.debug.print("zonkey v0.1 - 2023\n", .{});
     std.debug.print("{s}", .{prompt});
     while (try reader.readUntilDelimiterOrEof(&buffer, '\n')) |line| {
         var lex = lexer.Lexer.init(line);
@@ -24,7 +24,6 @@ pub fn main() !void {
                     std.debug.print(".{s}\n", .{@tagName(token)});
                 },
             }
-            // std.debug.print("{}\n", .{token});
         }
 
         std.debug.print("{s}", .{prompt});
