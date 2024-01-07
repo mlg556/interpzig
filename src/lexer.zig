@@ -31,6 +31,8 @@ pub const Token = union(enum) {
     RPAREN,
     LBRACE,
     RBRACE,
+    EQ,
+    NOT_EQ,
 
     // keywords
     FUNCTION,
@@ -98,7 +100,14 @@ const Lexer = struct {
     pub fn nextToken(lex: *Lexer) Token {
         lex.skipWhitespace();
         const tok: Token = switch (lex.ch) {
-            '=' => .ASSIGN,
+            // '=' and '=='
+            '=' => blk: {
+                if (lex.peekChar() == '=') {
+                    lex.readChar();
+                    break :blk .EQ; // '==''
+                }
+                break :blk .ASSIGN; // '='
+            },
             ';' => .SEMICOLON,
             '(' => .LPAREN,
             ')' => .RPAREN,
@@ -107,7 +116,13 @@ const Lexer = struct {
             '{' => .LBRACE,
             '}' => .RBRACE,
             '-' => .MINUS,
-            '!' => .BANG,
+            '!' => blk: {
+                if (lex.peekChar() == '=') {
+                    lex.readChar();
+                    break :blk .NOT_EQ;
+                }
+                break :blk .BANG;
+            },
             '*' => .ASTERISK,
             '/' => .SLASH,
             '<' => .LT,
@@ -155,6 +170,15 @@ const Lexer = struct {
 
     fn isDigit(ch: u8) bool {
         return std.ascii.isDigit(ch);
+    }
+
+    // returns the next char, 0 if already at the end.
+    fn peekChar(lex: Lexer) u8 {
+        if (lex.readPosition >= lex.input.len) {
+            return 0;
+        }
+
+        return lex.input[lex.readPosition];
     }
 
     /// reads in an identifier and advances the lexer’s positions until it encounters a non-letter-character
@@ -247,6 +271,8 @@ test "Lexer - Full" {
         \\} else {
         \\return false;
         \\}
+        \\10 == 10;
+        \\10 != 9;
     ;
 
     var lex = Lexer.init(input);
@@ -318,6 +344,16 @@ test "Lexer - Full" {
         .FALSE,
         .SEMICOLON,
         .RBRACE,
+
+        .{ .INT = "10" },
+        .EQ,
+        .{ .INT = "10" },
+        .SEMICOLON,
+
+        .{ .INT = "10" },
+        .NOT_EQ,
+        .{ .INT = "9" },
+        .SEMICOLON,
 
         .EOF,
     };
