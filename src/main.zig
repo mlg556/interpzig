@@ -1,15 +1,32 @@
 const std = @import("std");
+const lexer = @import("lexer.zig");
 
-const token = @import("token.zig");
+const prompt = ">> ";
 
 pub fn main() !void {
-    // token.
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
-}
+    var reader = std.io.getStdIn().reader();
+    var buffer: [1024]u8 = undefined;
 
-// test "simple test" {
-//     var list = std.ArrayList(i32).init(std.testing.allocator);
-//     defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-//     try list.append(42);
-//     try std.testing.expectEqual(@as(i32, 42), list.pop());
-// }
+    std.debug.print("{s}", .{prompt});
+    while (try reader.readUntilDelimiterOrEof(&buffer, '\n')) |line| {
+        var lex = lexer.Lexer.init(line);
+        while (lex.ch != 0) {
+            const token = lex.nextToken();
+            // custom print for token
+            switch (token) {
+                .IDENT => {
+                    std.debug.print(".IDENT = '{s}'\n", .{token.IDENT});
+                },
+                .INT => {
+                    std.debug.print(".INT = '{s}'\n", .{token.INT});
+                },
+                else => {
+                    std.debug.print(".{s}\n", .{@tagName(token)});
+                },
+            }
+            // std.debug.print("{}\n", .{token});
+        }
+
+        std.debug.print("{s}", .{prompt});
+    }
+}

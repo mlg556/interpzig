@@ -42,6 +42,22 @@ pub const Token = union(enum) {
     IF,
     ELSE,
     RETURN,
+
+    // pub fn format(self: Token, comptime fmt: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+    //     _ = fmt;
+
+    //     switch (self) {
+    //         .IDENT => {
+    //             return std.fmt.format(writer, ".IDENT = '{s}'\n", .{self.IDENT});
+    //         },
+    //         .INT => {
+    //             return std.fmt.format(writer, ".INT = '{s}'\n", .{self.INT});
+    //         },
+    //         else => {
+    //             return std.fmt.format(writer, "{}\n", .{self});
+    //         },
+    //     }
+    // }
 };
 
 const keyword_map = std.ComptimeStringMap(Token, .{
@@ -55,7 +71,7 @@ const keyword_map = std.ComptimeStringMap(Token, .{
 });
 
 /// Main Lexer struct.
-const Lexer = struct {
+pub const Lexer = struct {
     /// input string line.
     input: string,
     /// current position in input (points to current char)
@@ -71,7 +87,6 @@ const Lexer = struct {
         lex.readChar();
         return lex;
     }
-
     ///  gives us the next character and advance our position in the input string.
     fn readChar(lex: *Lexer) void {
         if (lex.readPosition >= lex.input.len) {
