@@ -43,21 +43,13 @@ pub const Token = union(enum) {
     ELSE,
     RETURN,
 
-    // pub fn format(self: Token, comptime fmt: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-    //     _ = fmt;
-
-    //     switch (self) {
-    //         .IDENT => {
-    //             return std.fmt.format(writer, ".IDENT = '{s}'\n", .{self.IDENT});
-    //         },
-    //         .INT => {
-    //             return std.fmt.format(writer, ".INT = '{s}'\n", .{self.INT});
-    //         },
-    //         else => {
-    //             return std.fmt.format(writer, "{}\n", .{self});
-    //         },
-    //     }
-    // }
+    // how do I check which union using if???
+    pub fn isEOF(tok: Token) bool {
+        switch (tok) {
+            .EOF => return true,
+            else => return false,
+        }
+    }
 };
 
 const keyword_map = std.ComptimeStringMap(Token, .{
