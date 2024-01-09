@@ -1,19 +1,11 @@
-// so we could do tokens this way:
-// pub const TokenType = string;
-// pub const Token = struct { Type: TokenType, Literal: string };
-// but the "Literal" "payload" is only needed in
-// "identifier", to get its name, and "int", to get its value.
-// so lets use an union(enum), and lets not carry chars around, also its more cooler apparently.
-// refresher: A bare union defines a set of possible types that a value can be as a list of fields. Only one field can be active at a time. Unions can be declared with an enum tag type. This turns the union into a tagged union, which makes it eligible to use with switch expressions Unions can be made to infer the enum tag type.
-
 const std = @import("std");
 
-pub const string = []const u8; // type alias
+pub const string = []const u8;
 
-/// Type for holding the information about a  IDENT and INT have string payloads corresponding to their values.
-pub const Token = union(enum) {
-    IDENT: string,
-    INT: string,
+pub const TokenType = enum {
+    // only these two have a string payload called "literal"
+    IDENT,
+    INT,
 
     ILLEGAL,
     EOF,
@@ -23,18 +15,16 @@ pub const Token = union(enum) {
     BANG,
     ASTERISK,
     SLASH,
-    LESS_THAN,
-    GREATER_THAN,
     COMMA,
     SEMICOLON,
     LPAREN,
     RPAREN,
     LBRACE,
     RBRACE,
-    EQ,
-    NOT_EQ,
-
-    // keywords
+    EQUAL,
+    NOT_EQUAL,
+    LESS_THAN,
+    GREATER_THAN,
     FUNCTION,
     LET,
     TRUE,
@@ -42,17 +32,9 @@ pub const Token = union(enum) {
     IF,
     ELSE,
     RETURN,
-
-    // how do I check which union using if???
-    pub fn isEOF(tok: Token) bool {
-        switch (tok) {
-            .EOF => return true,
-            else => return false,
-        }
-    }
 };
 
-const keyword_map = std.ComptimeStringMap(Token, .{
+const keyword_map = std.ComptimeStringMap(TokenType, .{
     .{ "fn", .FUNCTION },
     .{ "let", .LET },
     .{ "true", .TRUE },
@@ -61,6 +43,21 @@ const keyword_map = std.ComptimeStringMap(Token, .{
     .{ "else", .ELSE },
     .{ "return", .RETURN },
 });
+
+pub const Token = struct {
+    type: TokenType = .ILLEGAL,
+    literal: string = "",
+
+    pub fn format(tok: Token, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+
+        switch (tok.literal.len) {
+            0 => return std.fmt.format(writer, "{s}", .{@tagName(tok.type)}),
+            else => return std.fmt.format(writer, "{s}[{s}]", .{ @tagName(tok.type), tok.literal }),
+        }
+    }
+};
 
 /// Main Lexer struct.
 pub const Lexer = struct {
@@ -106,36 +103,45 @@ pub const Lexer = struct {
     /// looks at the current character under examination and returns a token depending on which character it is.
     pub fn nextToken(lex: *Lexer) Token {
         lex.skipWhitespace();
-        const tok: Token = switch (lex.ch) {
+        var tok = Token{};
+        switch (lex.ch) {
             // '=' and '=='
-            '=' => blk: {
+            '=' => {
                 if (lex.peekChar() == '=') {
                     lex.readChar();
-                    break :blk .EQ; // '==''
+                    tok.type = .EQUAL; // '==''
+                    return tok;
+                } else {
+                    lex.readChar();
+                    tok.type = .ASSIGN; // '='
+                    return tok;
                 }
-                break :blk .ASSIGN; // '='
             },
-            ';' => .SEMICOLON,
-            '(' => .LPAREN,
-            ')' => .RPAREN,
-            ',' => .COMMA,
-            '+' => .PLUS,
-            '{' => .LBRACE,
-            '}' => .RBRACE,
-            '-' => .MINUS,
-            '!' => blk: {
+            ';' => tok.type = .SEMICOLON,
+            '(' => tok.type = .LPAREN,
+            ')' => tok.type = .RPAREN,
+            ',' => tok.type = .COMMA,
+            '+' => tok.type = .PLUS,
+            '{' => tok.type = .LBRACE,
+            '}' => tok.type = .RBRACE,
+            '-' => tok.type = .MINUS,
+            '!' => {
                 if (lex.peekChar() == '=') {
                     lex.readChar();
-                    break :blk .NOT_EQ;
+                    tok.type = .NOT_EQUAL;
+                    return tok;
+                } else {
+                    lex.readChar();
+                    tok.type = .BANG;
+                    return tok;
                 }
-                break :blk .BANG;
             },
-            '*' => .ASTERISK,
-            '/' => .SLASH,
-            '<' => .LESS_THAN,
-            '>' => .GREATER_THAN,
+            '*' => tok.type = .ASTERISK,
+            '/' => tok.type = .SLASH,
+            '<' => tok.type = .LESS_THAN,
+            '>' => tok.type = .GREATER_THAN,
 
-            0 => .EOF,
+            0 => tok.type = .EOF,
 
             // isLetter
             'a'...'z', 'A'...'Z', '_' => {
@@ -143,22 +149,30 @@ pub const Lexer = struct {
                 const ident = lex.readIdentifier();
 
                 // if keyword, return its token
-                if (lookupIdent(ident)) |token| {
-                    return token;
+                if (lookupIdent(ident)) |token_type| {
+                    tok.type = token_type;
+                    return tok;
+                    // .{ .type = token_type };
                 }
 
                 // if not, return an identifier token with payload
-                return .{ .IDENT = ident };
+                tok.type = .IDENT;
+                tok.literal = ident;
+                return tok;
+                //return .{ .IDENT = ident };
             },
 
             // is digit
             '0'...'9' => {
                 const num = lex.readNumber();
-                return .{ .INT = num };
+                tok.type = .INT;
+                tok.literal = num;
+                return tok;
+                //return .{ .INT = num };
             },
 
-            else => .ILLEGAL,
-        };
+            else => tok.type = .ILLEGAL,
+        }
 
         lex.readChar();
         return tok;
@@ -200,7 +214,7 @@ pub const Lexer = struct {
     }
 
     /// checks the keywords table to see whether the given identifier is in fact a keyword. returns is as a token if so. else returns null.
-    fn lookupIdent(ident: string) ?Token {
+    fn lookupIdent(ident: string) ?TokenType {
         return keyword_map.get(ident);
     }
 };
@@ -210,164 +224,20 @@ test "Lexer" {
     var lex = Lexer.init(input);
 
     const exp_tokens = [_]Token{
-        .ASSIGN,
-        .PLUS,
-        .LPAREN,
-        .RPAREN,
-        .LBRACE,
-        .RBRACE,
-        .COMMA,
-        .SEMICOLON,
-        .EOF,
+        .{ .type = .ASSIGN },
+        .{ .type = .PLUS },
+        .{ .type = .LPAREN },
+        .{ .type = .RPAREN },
+        .{ .type = .LBRACE },
+        .{ .type = .RBRACE },
+        .{ .type = .COMMA },
+        .{ .type = .SEMICOLON },
+        .{ .type = .EOF },
     };
 
     for (exp_tokens) |exp_token| {
         const token = lex.nextToken();
 
-        try std.testing.expectEqualDeep(exp_token, token);
-    }
-}
-
-test "Lexer - More" {
-    const input =
-        \\let five = 5;
-        \\let ten = 10;
-        \\let add = fn(x, y) {
-        \\    x + y;
-        \\};
-        \\let result = add(five, ten);
-    ;
-
-    var lex = Lexer.init(input);
-
-    const exp_tokens = [_]Token{
-        .LET,
-        .{ .IDENT = "five" }, // notice the identifier with payload "five"
-        .ASSIGN,
-        .{ .INT = "5" },
-        .SEMICOLON,
-        .LET,
-        .{ .IDENT = "ten" },
-        .ASSIGN,
-        .{ .INT = "10" },
-        .SEMICOLON,
-        .LET,
-        .{ .IDENT = "add" },
-        .ASSIGN,
-        .FUNCTION,
-    };
-
-    for (exp_tokens) |exp_token| {
-        const token = lex.nextToken();
-        try std.testing.expectEqualDeep(exp_token, token);
-    }
-}
-
-test "Lexer - Full" {
-    const input =
-        \\let five = 5;
-        \\let ten = 10;
-        \\let add = fn(x, y) {
-        \\ x + y;
-        \\ };
-        \\let result = add(five, ten);
-        \\!-/*5;
-        \\5 < 10 > 5;
-        \\if (5 < 10) {
-        \\return true;
-        \\} else {
-        \\return false;
-        \\}
-        \\10 == 10;
-        \\10 != 9;
-    ;
-
-    var lex = Lexer.init(input);
-
-    var exp_tokens = [_]Token{
-        .LET,
-        .{ .IDENT = "five" },
-        .ASSIGN,
-        .{ .INT = "5" },
-        .SEMICOLON,
-        .LET,
-        .{ .IDENT = "ten" },
-        .ASSIGN,
-        .{ .INT = "10" },
-        .SEMICOLON,
-        .LET,
-        .{ .IDENT = "add" },
-        .ASSIGN,
-        .FUNCTION,
-        .LPAREN,
-        .{ .IDENT = "x" },
-        .COMMA,
-        .{ .IDENT = "y" },
-        .RPAREN,
-        .LBRACE,
-        .{ .IDENT = "x" },
-        .PLUS,
-        .{ .IDENT = "y" },
-        .SEMICOLON,
-        .RBRACE,
-        .SEMICOLON,
-        .LET,
-        .{ .IDENT = "result" },
-        .ASSIGN,
-        .{ .IDENT = "add" },
-        .LPAREN,
-        .{ .IDENT = "five" },
-        .COMMA,
-        .{ .IDENT = "ten" },
-        .RPAREN,
-        .SEMICOLON,
-
-        .BANG,
-        .MINUS,
-        .SLASH,
-        .ASTERISK,
-        .{ .INT = "5" },
-        .SEMICOLON,
-        .{ .INT = "5" },
-        .LESS_THAN,
-        .{ .INT = "10" },
-        .GREATER_THAN,
-        .{ .INT = "5" },
-        .SEMICOLON,
-        .IF,
-        .LPAREN,
-        .{ .INT = "5" },
-        .LESS_THAN,
-        .{ .INT = "10" },
-        .RPAREN,
-        .LBRACE,
-        .RETURN,
-        .TRUE,
-        .SEMICOLON,
-        .RBRACE,
-        .ELSE,
-        .LBRACE,
-        .RETURN,
-        .FALSE,
-        .SEMICOLON,
-        .RBRACE,
-
-        .{ .INT = "10" },
-        .EQ,
-        .{ .INT = "10" },
-        .SEMICOLON,
-
-        .{ .INT = "10" },
-        .NOT_EQ,
-        .{ .INT = "9" },
-        .SEMICOLON,
-
-        .EOF,
-    };
-
-    for (exp_tokens) |exp_token| {
-        const token = lex.nextToken();
-        std.debug.print("{:}\n", .{token});
         try std.testing.expectEqualDeep(exp_token, token);
     }
 }

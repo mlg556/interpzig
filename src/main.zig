@@ -12,18 +12,19 @@ pub fn main() !void {
         var lex = lexer.Lexer.init(line);
         while (lex.ch != 0) {
             const token = lex.nextToken();
+            std.debug.print("{}\n", .{token});
             // custom print for token
-            switch (token) {
-                .IDENT => {
-                    std.debug.print(".IDENT = '{s}'\n", .{token.IDENT});
-                },
-                .INT => {
-                    std.debug.print(".INT = '{s}'\n", .{token.INT});
-                },
-                else => {
-                    std.debug.print(".{s}\n", .{@tagName(token)});
-                },
-            }
+            // switch (token.type) {
+            //     .IDENT => {
+            //         std.debug.print(".IDENT = '{s}'\n", .{token.IDENT});
+            //     },
+            //     .INT => {
+            //         std.debug.print(".INT = '{s}'\n", .{token.INT});
+            //     },
+            //     else => {
+            //         std.debug.print(".{s}\n", .{@tagName(token)});
+            //     },
+            // }
         }
 
         std.debug.print("{s}", .{prompt});
