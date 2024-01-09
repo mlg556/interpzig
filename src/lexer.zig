@@ -110,11 +110,8 @@ pub const Lexer = struct {
                 if (lex.peekChar() == '=') {
                     lex.readChar();
                     tok.type = .EQUAL; // '==''
-                    return tok;
                 } else {
-                    lex.readChar();
                     tok.type = .ASSIGN; // '='
-                    return tok;
                 }
             },
             ';' => tok.type = .SEMICOLON,
@@ -129,11 +126,8 @@ pub const Lexer = struct {
                 if (lex.peekChar() == '=') {
                     lex.readChar();
                     tok.type = .NOT_EQUAL;
-                    return tok;
                 } else {
-                    lex.readChar();
                     tok.type = .BANG;
-                    return tok;
                 }
             },
             '*' => tok.type = .ASTERISK,
@@ -145,21 +139,16 @@ pub const Lexer = struct {
 
             // isLetter
             'a'...'z', 'A'...'Z', '_' => {
-                // read identifier, could be keyword or not
                 const ident = lex.readIdentifier();
 
-                // if keyword, return its token
                 if (lookupIdent(ident)) |token_type| {
                     tok.type = token_type;
                     return tok;
-                    // .{ .type = token_type };
+                } else {
+                    tok.type = .IDENT;
+                    tok.literal = ident;
+                    return tok;
                 }
-
-                // if not, return an identifier token with payload
-                tok.type = .IDENT;
-                tok.literal = ident;
-                return tok;
-                //return .{ .IDENT = ident };
             },
 
             // is digit
@@ -168,7 +157,6 @@ pub const Lexer = struct {
                 tok.type = .INT;
                 tok.literal = num;
                 return tok;
-                //return .{ .INT = num };
             },
 
             else => tok.type = .ILLEGAL,
@@ -213,9 +201,13 @@ pub const Lexer = struct {
         return lex.input[pos..lex.position];
     }
 
-    /// checks the keywords table to see whether the given identifier is in fact a keyword. returns is as a token if so. else returns null.
+    /// if identifier is a keyword, returns a special token type. else returns null
     fn lookupIdent(ident: string) ?TokenType {
-        return keyword_map.get(ident);
+        if (keyword_map.get(ident)) |token_type| {
+            return token_type;
+        }
+
+        return null;
     }
 };
 
@@ -238,6 +230,115 @@ test "Lexer" {
     for (exp_tokens) |exp_token| {
         const token = lex.nextToken();
 
+        try std.testing.expectEqualDeep(exp_token, token);
+    }
+}
+
+test "Lexer - Full" {
+    const input =
+        \\let five = 5;
+        \\let ten = 10;
+        \\let add = fn(x, y) {
+        \\ x + y;
+        \\ };
+        \\let result = add(five, ten);
+        \\!-/*5;
+        \\5 < 10 > 5;
+        \\if (5 < 10) {
+        \\return true;
+        \\} else {
+        \\return false;
+        \\}
+        \\10 == 10;
+        \\10 != 9;
+    ;
+
+    var lex = Lexer.init(input);
+
+    var exp_tokens = [_]Token{
+        .{ .type = .LET },
+        .{ .type = .IDENT, .literal = "five" },
+        .{ .type = .ASSIGN },
+        .{ .type = .INT, .literal = "5" },
+        .{ .type = .SEMICOLON },
+        .{ .type = .LET },
+        .{ .type = .IDENT, .literal = "ten" },
+        .{ .type = .ASSIGN },
+        .{ .type = .INT, .literal = "10" },
+        .{ .type = .SEMICOLON },
+        .{ .type = .LET },
+        .{ .type = .IDENT, .literal = "add" },
+        .{ .type = .ASSIGN },
+        .{ .type = .FUNCTION },
+        .{ .type = .LPAREN },
+        .{ .type = .IDENT, .literal = "x" },
+        .{ .type = .COMMA },
+        .{ .type = .IDENT, .literal = "y" },
+        .{ .type = .RPAREN },
+        .{ .type = .LBRACE },
+        .{ .type = .IDENT, .literal = "x" },
+        .{ .type = .PLUS },
+        .{ .type = .IDENT, .literal = "y" },
+        .{ .type = .SEMICOLON },
+        .{ .type = .RBRACE },
+        .{ .type = .SEMICOLON },
+        .{ .type = .LET },
+        .{ .type = .IDENT, .literal = "result" },
+        .{ .type = .ASSIGN },
+        .{ .type = .IDENT, .literal = "add" },
+        .{ .type = .LPAREN },
+        .{ .type = .IDENT, .literal = "five" },
+        .{ .type = .COMMA },
+        .{ .type = .IDENT, .literal = "ten" },
+        .{ .type = .RPAREN },
+        .{ .type = .SEMICOLON },
+
+        .{ .type = .BANG },
+        .{ .type = .MINUS },
+        .{ .type = .SLASH },
+        .{ .type = .ASTERISK },
+        .{ .type = .INT, .literal = "5" },
+        .{ .type = .SEMICOLON },
+        .{ .type = .INT, .literal = "5" },
+        .{ .type = .LESS_THAN },
+        .{ .type = .INT, .literal = "10" },
+        .{ .type = .GREATER_THAN },
+        .{ .type = .INT, .literal = "5" },
+        .{ .type = .SEMICOLON },
+        .{ .type = .IF },
+        .{ .type = .LPAREN },
+        .{ .type = .INT, .literal = "5" },
+        .{ .type = .LESS_THAN },
+        .{ .type = .INT, .literal = "10" },
+        .{ .type = .RPAREN },
+        .{ .type = .LBRACE },
+        .{ .type = .RETURN },
+        .{ .type = .TRUE },
+        .{ .type = .SEMICOLON },
+        .{ .type = .RBRACE },
+        .{ .type = .ELSE },
+        .{ .type = .LBRACE },
+        .{ .type = .RETURN },
+        .{ .type = .FALSE },
+        .{ .type = .SEMICOLON },
+        .{ .type = .RBRACE },
+
+        .{ .type = .INT, .literal = "10" },
+        .{ .type = .EQUAL },
+        .{ .type = .INT, .literal = "10" },
+        .{ .type = .SEMICOLON },
+
+        .{ .type = .INT, .literal = "10" },
+        .{ .type = .NOT_EQUAL },
+        .{ .type = .INT, .literal = "9" },
+        .{ .type = .SEMICOLON },
+
+        .{ .type = .EOF },
+    };
+
+    for (exp_tokens) |exp_token| {
+        const token = lex.nextToken();
+        std.debug.print("{:}\n", .{token});
         try std.testing.expectEqualDeep(exp_token, token);
     }
 }
