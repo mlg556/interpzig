@@ -41,8 +41,33 @@ pub const Parser = struct {
     pub fn parseProgram(p: *Parser, alloc: std.mem.Allocator) *Program {
         // program is an arraylist of statements, we keep lexing and pushing
         var program: Program = .{ .statements = std.ArrayList(Statement).init(alloc) };
-        _ = program;
 
-        while (!p.curToken.isEOF()) {}
+        while (!p.curToken.isEOF()) {
+            var stmt = p.parseStatement();
+
+            if (stmt) |stat| {
+                program.statements.append(stat);
+            }
+
+            p.nextToken();
+        }
+
+        return program;
     }
+
+    pub fn parseStatement(p: *Parser) ?Statement {
+        switch (p.curToken) {
+            .LET => return p.parseLetStatement(),
+            else => return null,
+        }
+    }
+
+    pub fn parseLetStatement(p: *Parser) ?*Statement {
+        var stmt = Statement{ .token = p.curToken, .name = undefined, .value = undefined };
+
+        if (!p.expectPeek())
+            _ = stmt;
+    }
+
+    //pub fn expectPeek()
 };
