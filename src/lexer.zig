@@ -48,13 +48,13 @@ pub const Token = struct {
     type: TokenType = .ILLEGAL,
     literal: string = "",
 
-    pub fn format(tok: Token, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: Token, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         _ = fmt;
         _ = options;
 
-        switch (tok.literal.len) {
-            0 => return std.fmt.format(writer, "{s}", .{@tagName(tok.type)}),
-            else => return std.fmt.format(writer, "{s}[{s}]", .{ @tagName(tok.type), tok.literal }),
+        switch (self.literal.len) {
+            0 => return std.fmt.format(writer, "{s}", .{@tagName(self.type)}),
+            else => return std.fmt.format(writer, "{s}[{s}]", .{ @tagName(self.type), self.literal }),
         }
     }
 };

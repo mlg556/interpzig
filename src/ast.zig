@@ -9,7 +9,17 @@ const string = []const u8;
 
 pub const Expression = struct {};
 
-pub const Identifier = struct { token: Token, value: string };
+pub const Identifier = struct {
+    token: Token,
+    value: string,
+
+    pub fn format(self: Identifier, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+
+        return std.fmt.format(writer, "ast.Identifier{{ .token = {}, .value = '{s}' }}", .{ self.token, self.value });
+    }
+};
 
 pub const Statement = struct { token: Token, name: Identifier, value: Expression };
 
@@ -105,16 +115,22 @@ pub const Parser = struct {
 };
 
 test "AST" {
+    const input =
+        \\let x = 5;
+        \\let ya = 53;
+    ;
+
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const allocator = fba.allocator();
 
-    const input = "let x = 5;";
     var lex = Lexer.init(input);
     var parser = Parser.init(&lex);
     var prog = try parser.parseProgram(allocator);
 
+    std.debug.print("\n", .{});
     for (prog.statements.items) |stmt| {
         std.debug.print("{:}\n", .{stmt});
+        //try std.json.stringify(stmt, .{}, std.io.getStdOut().writer());
     }
 }
