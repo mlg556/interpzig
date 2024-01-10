@@ -120,6 +120,22 @@ test "AST" {
         \\let ya = 53;
     ;
 
+    // zig fmt: off
+    const exp_stmts = [_]Statement{
+        Statement{
+            .token = Token{ .type = .LET, .literal = "" },
+            .name = Identifier{ .token = Token{ .type = .IDENT, .literal = "x" }, .value = "x"},
+            .value = .{} 
+        },
+        Statement{
+            .token = Token{ .type = .LET, .literal = "" },
+            .name = Identifier{ .token = Token{ .type = .IDENT, .literal = "ya" }, .value = "ya"},
+            .value = .{} 
+        },
+
+    };
+    // zig fmt: on
+
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const allocator = fba.allocator();
@@ -129,8 +145,9 @@ test "AST" {
     var prog = try parser.parseProgram(allocator);
 
     std.debug.print("\n", .{});
-    for (prog.statements.items) |stmt| {
+    for (prog.statements.items, 0..) |stmt, i| {
         std.debug.print("{:}\n", .{stmt});
+        try std.testing.expectEqualDeep(exp_stmts[i], stmt);
         //try std.json.stringify(stmt, .{}, std.io.getStdOut().writer());
     }
 }
