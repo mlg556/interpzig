@@ -91,7 +91,7 @@ pub const Lexer = struct {
     fn readNumber(lex: *Lexer) string {
 
         // TODO: integrate std.fmt.ParseInt
-        var pos = lex.position;
+        const pos = lex.position;
 
         while (isDigit(lex.ch)) {
             lex.readChar();
@@ -255,7 +255,7 @@ test "Lexer - Full" {
 
     var lex = Lexer.init(input);
 
-    var exp_tokens = [_]Token{
+    const exp_tokens = [_]Token{
         .{ .type = .LET },
         .{ .type = .IDENT, .literal = "five" },
         .{ .type = .ASSIGN },
